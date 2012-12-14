@@ -3,10 +3,14 @@ vertexShader = """
 precision highp float;
 #endif
 
+uniform vec2 resolution;
+attribute vec2 textureCoordinates;
 attribute vec3 position;
+varying vec3 uvResult;
 
 void main() {
-  gl_Position = vec4(position, 1.0);
+  gl_Position = vec4(position.xy / resolution * 2.0 - vec2(1.0), .0, 1.0);
+  uvResult = vec3(textureCoordinates.xy, .0);
 }
 """
 
@@ -17,11 +21,12 @@ precision highp float;
 
 uniform vec2 resolution;
 uniform sampler2D diffuseMap;
+varying vec3 uvResult;
 
 void main() {
-  vec2 normPoint = gl_FragCoord.xy / resolution.y;
+  //vec2 normPoint = gl_FragCoord.xy / resolution.y;
   //gl_FragColor = vec4(normPoint, .0, 1.0);
-  vec4 texel = texture2D(diffuseMap, normPoint);
+  vec4 texel = texture2D(diffuseMap, uvResult.xy);
   gl_FragColor = texel;
 }
 """
@@ -34,6 +39,7 @@ class @Graphics
     @gl = null
     @buffer = null
     @uniforms = {}
+    @attributes = {}
 
   init: (onFinished) ->
     callbacks = new Callbacks(onFinished)
@@ -49,9 +55,25 @@ class @Graphics
     # Create vertex buffer (2 triangles)
     @vertexBuffer = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(
-      [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 ]
-    ), gl.STATIC_DRAW
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
+      10, 10,
+      200, 10,
+      10, 500,
+      200, 10,
+      200, 500,
+      10, 500
+    ]), gl.STATIC_DRAW
+
+    @uvBuffer = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @uvBuffer
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
+      0, 0,
+      1, 0,
+      0, 1,
+      1, 0,
+      1, 1,
+      0, 1
+    ]), gl.STATIC_DRAW
 
     @updateSize @canvas.width, @canvas.height
 
@@ -72,8 +94,11 @@ class @Graphics
     @program = program
     gl.useProgram @program
 
-    @vertexPosition = gl.getAttribLocation(program, 'position')
-    gl.enableVertexAttribArray @vertexPosition
+    @attributes.position = gl.getAttribLocation(program, 'position')
+    gl.enableVertexAttribArray @attributes.position
+
+    @attributes.textureCoordinates = gl.getAttribLocation(program, 'textureCoordinates')
+    gl.enableVertexAttribArray @attributes.textureCoordinates
 
     @uniforms.diffuseMap = gl.getUniformLocation(program, 'diffuseMap')
 
@@ -117,6 +142,8 @@ class @Graphics
     gl.uniform2f @uniforms.resolution, @canvas.width, @canvas.height
 
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
-    gl.vertexAttribPointer @vertexPosition, 2, gl.FLOAT, false, 0, 0
+    gl.vertexAttribPointer @attributes.position, 2, gl.FLOAT, false, 0, 0
+    gl.bindBuffer gl.ARRAY_BUFFER, @uvBuffer
+    gl.vertexAttribPointer @attributes.textureCoordinates, 2, gl.FLOAT, false, 0, 0
 
     @gl.drawArrays gl.TRIANGLES, 0, 6
