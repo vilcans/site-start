@@ -31,6 +31,8 @@ void main() {
 }
 """
 
+sizeOfFloat = 4
+
 class @Graphics
 
   constructor: (@parentElement) ->
@@ -56,23 +58,13 @@ class @Graphics
     @vertexBuffer = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
     gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
-      10, 10,
-      200, 10,
-      10, 500,
-      200, 10,
-      200, 500,
-      10, 500
-    ]), gl.STATIC_DRAW
-
-    @uvBuffer = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @uvBuffer
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
-      0, 0,
-      1, 0,
-      0, 1,
-      1, 0,
-      1, 1,
-      0, 1
+      # x,   y,   u, v
+       10,  10,   0, 0,
+      200,  10,   1, 0,
+       10, 500,   0, 1,
+      200,  10,   1, 0,
+      200, 500,   1, 1,
+       10, 500,   0, 1,
     ]), gl.STATIC_DRAW
 
     @updateSize @canvas.width, @canvas.height
@@ -142,8 +134,7 @@ class @Graphics
     gl.uniform2f @uniforms.resolution, @canvas.width, @canvas.height
 
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
-    gl.vertexAttribPointer @attributes.position, 2, gl.FLOAT, false, 0, 0
-    gl.bindBuffer gl.ARRAY_BUFFER, @uvBuffer
-    gl.vertexAttribPointer @attributes.textureCoordinates, 2, gl.FLOAT, false, 0, 0
+    gl.vertexAttribPointer @attributes.position, 2, gl.FLOAT, false, 4 * sizeOfFloat, 0
+    gl.vertexAttribPointer @attributes.textureCoordinates, 2, gl.FLOAT, false, 4 * sizeOfFloat, 2 * sizeOfFloat
 
     @gl.drawArrays gl.TRIANGLES, 0, 6
