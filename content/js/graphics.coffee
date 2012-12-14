@@ -33,6 +33,30 @@ void main() {
 
 sizeOfFloat = 4
 
+class @SpriteSystem
+  constructor: (gl) ->
+    @gl = gl
+    @buffer = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @buffer
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
+      # x,   y,   u, v
+       10,  10,   0, 0,
+      200,  10,   1, 0,
+       10, 500,   0, 1,
+      200,  10,   1, 0,
+      200, 500,   1, 1,
+       10, 500,   0, 1,
+    ]), gl.STATIC_DRAW
+
+  # Set up for drawing
+  draw: (attributes) ->
+    gl = @gl
+    gl.bindBuffer gl.ARRAY_BUFFER, @buffer
+    gl.vertexAttribPointer attributes.position, 2, gl.FLOAT, false, 4 * sizeOfFloat, 0
+    gl.vertexAttribPointer attributes.textureCoordinates, 2, gl.FLOAT, false, 4 * sizeOfFloat, 2 * sizeOfFloat
+
+    gl.drawArrays gl.TRIANGLES, 0, 6
+
 class @Graphics
 
   constructor: (@parentElement) ->
@@ -54,18 +78,7 @@ class @Graphics
     if not gl
       throw type: 'NoWebGL', message: 'WebGL not supported'
 
-    # Create vertex buffer (2 triangles)
-    @vertexBuffer = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
-      # x,   y,   u, v
-       10,  10,   0, 0,
-      200,  10,   1, 0,
-       10, 500,   0, 1,
-      200,  10,   1, 0,
-      200, 500,   1, 1,
-       10, 500,   0, 1,
-    ]), gl.STATIC_DRAW
+    @spriteSystem = new SpriteSystem(@gl)
 
     @updateSize @canvas.width, @canvas.height
 
@@ -133,8 +146,4 @@ class @Graphics
     gl.useProgram @program
     gl.uniform2f @uniforms.resolution, @canvas.width, @canvas.height
 
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuffer
-    gl.vertexAttribPointer @attributes.position, 2, gl.FLOAT, false, 4 * sizeOfFloat, 0
-    gl.vertexAttribPointer @attributes.textureCoordinates, 2, gl.FLOAT, false, 4 * sizeOfFloat, 2 * sizeOfFloat
-
-    @gl.drawArrays gl.TRIANGLES, 0, 6
+    @spriteSystem.draw @attributes
