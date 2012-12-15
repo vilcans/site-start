@@ -4,13 +4,18 @@ precision highp float;
 #endif
 
 uniform vec2 resolution;
-attribute vec2 textureCoordinates;
-attribute vec3 position;
-varying vec3 uvResult;
+attribute float cornerAngle;
+
+// Contains: x, y, size, rotation
+attribute vec4 position;
 
 void main() {
-  gl_Position = vec4(position.xy / resolution * 2.0 - vec2(1.0), .0, 1.0);
-  uvResult = vec3(textureCoordinates.xy, .0);
+  float rot = cornerAngle + position[3];
+  vec2 xy = position.xy + vec2(cos(rot), sin(rot));
+  xy *= position.z; // size
+  xy += vec2(70.0, 70.0);
+  gl_Position = vec4(xy / resolution * 2.0 - vec2(1.0), .0, 1.0);
+  //uvResult = vec3(textureCoordinates.xy, .0);
 }
 """
 
@@ -21,39 +26,80 @@ precision highp float;
 
 uniform vec2 resolution;
 uniform sampler2D diffuseMap;
-varying vec3 uvResult;
 
 void main() {
-  //vec2 normPoint = gl_FragCoord.xy / resolution.y;
-  //gl_FragColor = vec4(normPoint, .0, 1.0);
-  vec4 texel = texture2D(diffuseMap, uvResult.xy);
-  gl_FragColor = texel;
+  vec2 normPoint = gl_FragCoord.xy / resolution.y;
+  gl_FragColor = vec4(normPoint, .0, 1.0);
+  //vec4 texel = texture2D(diffuseMap, uvResult.xy);
+  //gl_FragColor = texel;
 }
 """
 
+checkError = (gl, message) ->
+  error = gl.getError()
+  if error
+    throw new Error("GL failed in #{message}: #{error}")
+
 sizeOfFloat = 4
+
+# Buffer contains:
+#   0  x
+#   4  y
+#   8  size
+#  12  rotation (radians)
+#  16  corner angle
+# Each sprite has four of the above, where only corner differs
+STRIDE = 5 * sizeOfFloat
+
+# Corner angles
+BOTTOM_LEFT = Math.PI * 2 / 8 * -3
+TOP_LEFT = Math.PI * 2 / 8 * 3
+TOP_RIGHT = Math.PI * 2 / 8 * 1
+BOTTOM_RIGHT = Math.PI * 2 / 8 * -1
 
 class @SpriteSystem
   constructor: (gl) ->
     @gl = gl
     @buffer = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @buffer
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array([
-      # x,   y,   u, v
-       10,  10,   0, 0,
-      200,  10,   1, 0,
-       10, 500,   0, 1,
-      200,  10,   1, 0,
-      200, 500,   1, 1,
-       10, 500,   0, 1,
-    ]), gl.STATIC_DRAW
+    r = .2
+    @array = new Float32Array([
+      # 0   4    8      12      16
+      # x   y   size  rotation  corner
+       1,   1,   51,     r,     BOTTOM_LEFT,
+       1,   1,   51,     r,     BOTTOM_RIGHT,
+       1,   1,   51,     r,     TOP_LEFT,
+       1,   1,   51,     r,     BOTTOM_RIGHT,
+       1,   1,   51,     r,     TOP_RIGHT,
+       1,   1,   51,     r,     TOP_LEFT,
+    ])
+
+  setRotation: (angle) ->
+    for i in [0...6]
+      @array[i * 5 + 3] = angle
+
+  setPosition: (x, y) ->
+    for i in [0...6]
+      @array[i * 5 + 0] = x
+      @array[i * 5 + 1] = y
 
   # Set up for drawing
   draw: (attributes) ->
     gl = @gl
+
+    gl.enable gl.BLEND
+    gl.disable gl.DEPTH_TEST
+    gl.disable gl.CULL_FACE
+    gl.blendFunc gl.ONE, gl.ONE_MINUS_SRC_ALPHA
+
     gl.bindBuffer gl.ARRAY_BUFFER, @buffer
-    gl.vertexAttribPointer attributes.position, 2, gl.FLOAT, false, 4 * sizeOfFloat, 0
-    gl.vertexAttribPointer attributes.textureCoordinates, 2, gl.FLOAT, false, 4 * sizeOfFloat, 2 * sizeOfFloat
+
+    gl.bufferData gl.ARRAY_BUFFER, @array, gl.DYNAMIC_DRAW
+
+    setPointer = (attr, size, offset) ->
+      gl.vertexAttribPointer attr, size, gl.FLOAT, false, STRIDE, offset
+
+    setPointer attributes.position, 4, 0
+    setPointer attributes.cornerAngle, 1, 16
 
     gl.drawArrays gl.TRIANGLES, 0, 6
 
@@ -101,9 +147,10 @@ class @Graphics
 
     @attributes.position = gl.getAttribLocation(program, 'position')
     gl.enableVertexAttribArray @attributes.position
-
-    @attributes.textureCoordinates = gl.getAttribLocation(program, 'textureCoordinates')
-    gl.enableVertexAttribArray @attributes.textureCoordinates
+    checkError gl, 'get position'
+    @attributes.cornerAngle = gl.getAttribLocation(program, 'cornerAngle')
+    gl.enableVertexAttribArray @attributes.cornerAngle
+    checkError gl, 'get cornerAngle'
 
     @uniforms.diffuseMap = gl.getUniformLocation(program, 'diffuseMap')
 
@@ -147,3 +194,4 @@ class @Graphics
     gl.uniform2f @uniforms.resolution, @canvas.width, @canvas.height
 
     @spriteSystem.draw @attributes
+    checkError gl, 'spriteSystem.draw'
